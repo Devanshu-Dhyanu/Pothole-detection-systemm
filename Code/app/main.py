@@ -9,6 +9,7 @@ and mobile Android PWA clients.
 import os
 import sys
 import io
+import base64
 import time
 import json
 import numpy as np
@@ -104,7 +105,15 @@ async def detect_road_hazards(
     detector.conf_threshold = confidence
     detector.iou_threshold = iou
 
-    _, detections, severity_report, latency_ms = detector.predict(image)
+    annotated_image, detections, severity_report, latency_ms = detector.predict(image)
+
+    encoded, image_buffer = cv2.imencode(
+        ".jpg",
+        annotated_image,
+        [cv2.IMWRITE_JPEG_QUALITY, 88]
+    )
+    if not encoded:
+        raise HTTPException(status_code=500, detail="Unable to encode annotated image")
 
     return {
         "success": True,
@@ -112,7 +121,8 @@ async def detect_road_hazards(
         "latency_ms": latency_ms,
         "num_detections": len(detections),
         "detections": detections,
-        "severity_assessment": severity_report
+        "severity_assessment": severity_report,
+        "annotated_image": f"data:image/jpeg;base64,{base64.b64encode(image_buffer).decode('ascii')}"
     }
 
 @app.get("/api/v1/telemetry")

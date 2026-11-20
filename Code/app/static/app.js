@@ -34,26 +34,36 @@ cameraCard.addEventListener('drop', (e) => {
 async function analyzeFile(file) {
   if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = (event) => {
-    imagePreview.src = event.target.result;
-    previewCard.classList.add('has-image');
-    previewPlaceholder.style.display = 'none';
-    loadingSpinner.classList.add('visible');
-    resultCard.classList.add('loading');
-  };
-  reader.readAsDataURL(file);
-
-  const formData = new FormData();
-  formData.append('file', file);
+  previewCard.classList.add('has-image');
+  previewPlaceholder.style.display = 'none';
+  loadingSpinner.classList.add('visible');
+  resultCard.classList.add('loading');
 
   try {
+    const previewData = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') resolve(reader.result);
+        else reject(new Error('Unable to preview this image'));
+      };
+      reader.onerror = () => reject(reader.error || new Error('Unable to read this image'));
+      reader.readAsDataURL(file);
+    });
+    imagePreview.src = previewData;
+
+    const formData = new FormData();
+    formData.append('file', file);
     const response = await fetch('/api/v1/detect', {
       method: 'POST',
       body: formData
     });
     if (!response.ok) throw new Error('Analysis request failed');
     const data = await response.json();
+    if (!data.success || !data.annotated_image) {
+      throw new Error('Analysis response did not include an annotated image');
+    }
+
+    imagePreview.src = data.annotated_image;
     loadingSpinner.classList.remove('visible');
     resultCard.classList.remove('loading');
 
