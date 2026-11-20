@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="manifest" href="/static/manifest.json">
+  <link rel="stylesheet" href="/static/styles.css">
+  <title>RoadGuard AI | Mobile PWA</title>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="header">
+      <div class="logo-box">
+        <div class="logo-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><path d="M12 3 4 20h16L12 3Zm0 5.3 3.1 6.7H8.9L12 8.3ZM9.7 17h4.6l1.1 2H8.6l1.1-2Z"/></svg>
+        </div>
+        <div>
+          <h2>RoadGuard AI</h2>
+          <p>Road intelligence system</p>
+        </div>
+      </div>
+      <a class="status-pill" href="/api/v1/health" target="_blank">
+        <span class="status-dot"></span>
+        System online
+      </a>
+    </header>
+
+    <main class="content">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="eyebrow">AI-powered inspection</span>
+          <h1>Turn a road image into <span>actionable insights.</span></h1>
+          <p>Detect defects, estimate severity, and prioritize maintenance with one capture.</p>
+        </div>
+        <div class="hero-metrics" aria-label="System capabilities">
+          <div><strong>54.9</strong><span>FPS</span></div>
+          <div><strong>92.4%</strong><span>mAP</span></div>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="upload-column">
+          <label class="camera-card" for="cameraInput">
+            <input type="file" id="cameraInput" accept="image/*" capture="environment">
+            <div class="upload-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 7h3l1.2-2h7.6L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
+            </div>
+            <div>
+              <h3>Analyze a road image</h3>
+              <p>Drop a photo here or <strong>choose a file</strong></p>
+            </div>
+            <span class="upload-action">Choose image</span>
+          </label>
+          <p class="hint">JPG, PNG or HEIC · Camera or dashcam image</p>
+        </div>
+
+        <div id="previewCard" class="preview-card">
+          <div class="preview-placeholder" id="previewPlaceholder">
+            <svg viewBox="0 0 24 24"><path d="M3 5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5Zm2 14h14V5H5v14Zm2-2 3-4 2.2 2.7 3-3.7L17 15H7Zm3-7.5A1.5 1.5 0 1 0 10 6a1.5 1.5 0 0 0-2 0Z"/></svg>
+            <p>Image preview</p>
+          </div>
+          <img id="imagePreview" src="" alt="Captured road surface">
+          <div id="loadingSpinner" class="spinner">
+            <span class="spinner-ring"></span>
+            <span>Analyzing road surface…</span>
+          </div>
+        </div>
+
+        <div id="resultCard" class="result-card">
+          <div class="result-heading">
+            <div>
+              <span class="section-label">Analysis result</span>
+              <h3 id="defectTitle">Waiting for image</h3>
+            </div>
+            <div class="badge" id="priorityBadge">No scan</div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat"><span class="stat-icon">●</span><span class="val" id="statPotholes">—</span><span class="lbl">Potholes</span></div>
+            <div class="stat"><span class="stat-icon">◆</span><span class="val" id="statPsi">—</span><span class="lbl">PSI score</span></div>
+            <div class="stat"><span class="stat-icon">↕</span><span class="val" id="statDepth">—</span><span class="lbl">Max depth</span></div>
+          </div>
+          <div class="result-details">
+            <p id="actionText" class="action-desc">Upload a road image to begin inspection.</p>
+            <p id="costText" class="cost-desc">—</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

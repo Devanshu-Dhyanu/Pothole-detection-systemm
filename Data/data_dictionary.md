@@ -1,0 +1,30 @@
+# RoadGuard Pothole Telemetry Data Dictionary
+
+### Course: CSE471 | Deep Learning for Computer Vision
+
+This document formalizes the field attributes, data representations, constraints, and operational interpretations for the **RoadGuard Real-Time Road Surface Inspection and Telemetry Dataset**.
+
+| Field Name | Data Type | Constraints / Range | Operational Description |
+| :--- | :--- | :--- | :--- |
+| **`record_id`** | `VARCHAR(20)` | PRIMARY KEY, UNIQUE | Unique standardized identifier for each road inspection waypoint. |
+| **`timestamp`** | `ISO 8601 DATETIME` | NOT NULL | UTC timestamp of the dashcam frame capture and edge inference. |
+| **`road_name`** | `VARCHAR(100)` | NOT NULL | Official municipal or highway transit corridor nomenclature. |
+| **`surface_type`** | `VARCHAR(50)` | ENUM | Pavement construction type (Flexible Asphalt, Mastic, Stone Matrix, etc.). |
+| **`gps_latitude`** | `FLOAT(10,6)` | RANGE -90 to +90 | WGS84 decimal latitude coordinate acquired via GPS telemetry unit. |
+| **`gps_longitude`** | `FLOAT(10,6)` | RANGE -180 to +180 | WGS84 decimal longitude coordinate acquired via GPS telemetry unit. |
+| **`num_potholes`** | `INTEGER` | >= 0 | Total discrete pothole cavity bounding boxes detected by YOLO model. |
+| **`num_cracks`** | `INTEGER` | >= 0 | Total discrete structural fissures/cracks detected by the model. |
+| **`max_depth_cm`** | `FLOAT(4,1)` | >= 0.0 | Estimated maximum cavity depth in centimeters computed via perspective geometry. |
+| **`total_area_sqm`** | `FLOAT(5,2)` | >= 0.0 | Estimated cumulative defective road surface area in square meters. |
+| **`pothole_severity_index`** | `FLOAT(5,1)` | RANGE 0.0 to 100.0 | Unified composite damage metric (PSI) computed from area, depth, and detection confidence. |
+| **`hazard_priority`** | `VARCHAR(30)` | ENUM(P1, P2, P3, Normal) | Urgency triage level for municipal PWD engineering maintenance. |
+| **`weather_condition`** | `VARCHAR(30)` | NOT NULL | Ambient atmospheric state during dashcam capture (Sunny, Overcast, Monsoon, Dusk). |
+| **`surface_condition`** | `VARCHAR(30)` | NOT NULL | Physical surface appearance (Dry Clean, Wet Glare, Shadowed). |
+| **`recommended_action`** | `VARCHAR(150)` | NOT NULL | Engineering corrective measure based on IRC:SP:20 Indian Roads Congress standard. |
+| **`estimated_repair_cost_inr`** | `INTEGER` | >= 0 | Projected municipal repair expenditure in Indian Rupees (INR) based on schedule of rates. |
+| **`assigned_pwd_division`** | `VARCHAR(80)` | NOT NULL | Public Works Department jurisdictional authority responsible for maintenance. |
+
+### Quality Control & Preprocessing Notes:
+- **Missing Value Policy**: GPS dropouts are automatically interpolated from preceding odometer dead-reckoning.
+- **Coordinate Reference System**: EPSG:4326 (WGS 84 Ellipsoid).
+- **Audit Validation**: Complies with IRC (Indian Roads Congress) Guidelines for Maintenance Management of Primary and Urban Road Networks.

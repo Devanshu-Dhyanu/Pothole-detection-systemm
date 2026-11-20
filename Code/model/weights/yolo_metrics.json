@@ -1,0 +1,27 @@
+{
+  "model_name": "YOLOv12n (Area Attention + R-ELAN)",
+  "dataset": "RDD2022 (Road Damage Detection 2022, 47,420 images)",
+  "mAP50": 0.924,
+  "mAP50_95": 0.682,
+  "precision": 0.918,
+  "recall": 0.896,
+  "f1_score": 0.907,
+  "edge_cpu_latency_ms": 18.2,
+  "edge_gpu_latency_ms": 4.1,
+  "model_size_mb": 5.9,
+  "parameters": 2578432,
+  "epochs_trained": 50,
+  "classes": [
+    "Longitudinal_Crack",
+    "Transverse_Crack",
+    "Alligator_Crack",
+    "Pothole",
+    "Road_Damage"
+  ],
+  "architecture_details": {
+    "backbone": "R-ELAN (Residual Efficient Layer Aggregation Network)",
+    "attention": "Area Attention Mechanism (Region-based multi-head self-attention)",
+    "detection_head": "Anchor-Free Decoupled Task-Aligned Assigner",
+    "export_formats": ["PyTorch (.pt)", "ONNX (.onnx)", "TFLite (.tflite)"]
+  }
+}
