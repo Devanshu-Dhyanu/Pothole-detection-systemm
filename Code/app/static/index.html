@@ -93,7 +93,11 @@
             <span class="section-label">Your inspection log</span>
             <h2 id="historyTitle">Recent scans</h2>
           </div>
-          <span id="historyCount" class="history-count">0 scans</span>
+          <div class="history-heading-actions">
+            <span id="historyCount" class="history-count">0 scans</span>
+            <button id="exportCsvButton" class="history-export" type="button" disabled>Export CSV</button>
+            <button id="exportPdfButton" class="history-export history-export-primary" type="button" disabled>Print / Save PDF</button>
+          </div>
         </div>
         <p id="historyMessage" class="history-message" role="status">Scans are saved in this browser only.</p>
         <div class="map-card">

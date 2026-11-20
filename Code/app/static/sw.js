@@ -1,4 +1,4 @@
-const CACHE_NAME = 'roadguard-v4';
+const CACHE_NAME = 'roadguard-v5';
 const ASSETS = [
   '/static/index.html',
   '/static/styles.css',

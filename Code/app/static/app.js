@@ -19,11 +19,14 @@ const historyMessage = document.getElementById('historyMessage');
 const mapMessage = document.getElementById('mapMessage');
 const mapCount = document.getElementById('mapCount');
 const mapEmpty = document.getElementById('mapEmpty');
+const exportCsvButton = document.getElementById('exportCsvButton');
+const exportPdfButton = document.getElementById('exportPdfButton');
 const historyDatabaseName = 'roadguard-history';
 const historyStoreName = 'scans';
 const maxHistoryEntries = 20;
 let scanMap = null;
 let scanMarkerLayer = null;
+let currentScans = [];
 
 function initializeScanMap() {
   if (!window.L) {
@@ -254,20 +257,163 @@ function createHistoryElement(scan) {
 }
 
 async function renderHistory() {
-  const scans = await getHistoryScans();
-  historyCount.textContent = `${scans.length} ${scans.length === 1 ? 'scan' : 'scans'}`;
+  currentScans = await getHistoryScans();
+  historyCount.textContent = `${currentScans.length} ${currentScans.length === 1 ? 'scan' : 'scans'}`;
+  exportCsvButton.disabled = currentScans.length === 0;
+  exportPdfButton.disabled = currentScans.length === 0;
   historyList.replaceChildren();
-  updateScanMap(scans);
+  updateScanMap(currentScans);
 
-  if (!scans.length) {
+  if (!currentScans.length) {
     const emptyState = document.createElement('div');
     emptyState.className = 'history-empty';
     emptyState.textContent = 'Your completed inspections will appear here.';
     historyList.appendChild(emptyState);
     return;
   }
-  scans.forEach((scan) => historyList.appendChild(createHistoryElement(scan)));
+  currentScans.forEach((scan) => historyList.appendChild(createHistoryElement(scan)));
 }
+
+function csvCell(value) {
+  let text = value === null || value === undefined ? '' : String(value);
+  if (/^[\t\r ]*[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function exportHistoryCsv() {
+  if (!currentScans.length) return;
+
+  const columns = [
+    ['scanned_at', (scan) => scan.createdAt],
+    ['filename', (scan) => scan.filename],
+    ['hazard_class', (scan) => scan.hazardClass],
+    ['priority', (scan) => scan.priority],
+    ['potholes', (scan) => scan.potholes],
+    ['psi', (scan) => scan.psi],
+    ['max_depth_cm', (scan) => scan.maxDepthCm],
+    ['action_advisory', (scan) => scan.actionAdvisory],
+    ['estimated_repair_cost_inr', (scan) => scan.repairCost],
+    ['gps_latitude', (scan) => isValidLocation(scan.location) ? scan.location.latitude : ''],
+    ['gps_longitude', (scan) => isValidLocation(scan.location) ? scan.location.longitude : '']
+  ];
+  const lines = [
+    columns.map(([name]) => csvCell(name)).join(','),
+    ...currentScans.map((scan) => columns.map(([, getValue]) => csvCell(getValue(scan))).join(','))
+  ];
+  const file = new Blob([`\uFEFF${lines.join('\r\n')}`], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `roadguard-scans-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  historyMessage.textContent = `Exported ${currentScans.length} scan${currentScans.length === 1 ? '' : 's'} as CSV.`;
+}
+
+function appendReportText(documentRef, parent, tagName, text, className) {
+  const element = documentRef.createElement(tagName);
+  element.textContent = text;
+  if (className) element.className = className;
+  parent.appendChild(element);
+  return element;
+}
+
+function exportHistoryPdf() {
+  if (!currentScans.length) return;
+
+  const reportWindow = window.open('', '_blank');
+  if (!reportWindow) {
+    historyMessage.textContent = 'Report window was blocked. Allow pop-ups to print or save a PDF report.';
+    return;
+  }
+
+  const reportDocument = reportWindow.document;
+  reportDocument.open();
+  reportDocument.write(`<!doctype html>
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>RoadGuard Inspection Report</title>
+        <style>
+          * { box-sizing: border-box; }
+          body { margin: 0; padding: 32px; color: #172033; font: 14px/1.5 Arial, sans-serif; }
+          main { max-width: 900px; margin: auto; }
+          .print-button { display: block; margin: 0 0 22px auto; padding: 10px 16px; border: 0; border-radius: 6px; color: #fff; background: #146f73; cursor: pointer; font: 700 13px Arial, sans-serif; }
+          h1 { margin: 0 0 4px; font-size: 26px; }
+          .subtitle { margin: 0 0 24px; color: #58667a; }
+          .scan { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 20px; padding: 18px 0; border-top: 1px solid #d8dee8; break-inside: avoid; }
+          h2 { margin: 0 0 8px; overflow-wrap: anywhere; font-size: 17px; }
+          .details { margin: 0; padding: 0; list-style: none; }
+          .details li { margin: 5px 0; overflow-wrap: anywhere; }
+          .scan img { display: block; width: 100%; max-height: 270px; object-fit: contain; background: #f0f3f7; }
+          .footer { margin-top: 20px; color: #58667a; font-size: 11px; }
+          @media print { body { padding: 0; } .print-button { display: none; } }
+        </style>
+      </head>
+      <body><button id="printReport" class="print-button" type="button">Print / Save as PDF</button><main></main></body>
+    </html>`);
+  reportDocument.close();
+
+  const main = reportDocument.querySelector('main');
+  appendReportText(reportDocument, main, 'h1', 'RoadGuard Inspection Report');
+  appendReportText(
+    reportDocument,
+    main,
+    'p',
+    `${currentScans.length} recent scan${currentScans.length === 1 ? '' : 's'} · Generated ${new Date().toLocaleString()}`,
+    'subtitle'
+  );
+
+  currentScans.forEach((scan) => {
+    const section = reportDocument.createElement('section');
+    section.className = 'scan';
+    const details = reportDocument.createElement('div');
+    appendReportText(reportDocument, details, 'h2', scan.filename);
+    const list = reportDocument.createElement('ul');
+    list.className = 'details';
+    const locationText = isValidLocation(scan.location)
+      ? `${scan.location.latitude.toFixed(5)}, ${scan.location.longitude.toFixed(5)}`
+      : 'Not added';
+    [
+      `Scanned: ${new Date(scan.createdAt).toLocaleString()}`,
+      `Result: ${scan.hazardClass}`,
+      `Priority: ${scan.priority}`,
+      `Potholes: ${scan.potholes}`,
+      `PSI: ${scan.psi}/100`,
+      `Maximum depth: ${scan.maxDepthCm ?? '—'} cm`,
+      `Estimated repair: ₹${Number(scan.repairCost || 0).toLocaleString('en-IN')}`,
+      `Location: ${locationText}`,
+      `Recommended action: ${scan.actionAdvisory || '—'}`
+    ].forEach((value) => appendReportText(reportDocument, list, 'li', value));
+    details.appendChild(list);
+    section.appendChild(details);
+
+    if (typeof scan.image === 'string' && /^data:image\/(?:jpeg|png);base64,/.test(scan.image)) {
+      const image = reportDocument.createElement('img');
+      image.src = scan.image;
+      image.alt = `Annotated image for ${scan.filename}`;
+      section.appendChild(image);
+    }
+
+    main.appendChild(section);
+  });
+
+  appendReportText(reportDocument, main, 'p', 'Generated locally by RoadGuard AI.', 'footer');
+  historyMessage.textContent = 'Report opened in a new tab. Choose “Print / Save as PDF” there to export.';
+  reportDocument.getElementById('printReport').addEventListener('click', () => reportWindow.print());
+  const imageReady = Promise.all(
+    Array.from(reportDocument.images, (image) => image.decode().catch(() => undefined))
+  );
+  imageReady.then(() => {
+    if (!reportWindow.closed) reportWindow.focus();
+  });
+}
+
+exportCsvButton.addEventListener('click', exportHistoryCsv);
+exportPdfButton.addEventListener('click', exportHistoryPdf);
 
 function showLocationError(error) {
   if (error.code === 1) return 'Location permission was denied. Allow location access in your browser settings to add it.';
@@ -361,6 +507,8 @@ async function analyzeFile(file) {
         priority: sev.priority_level,
         potholes: sev.num_potholes,
         psi: sev.psi,
+        maxDepthCm: sev.max_depth_cm,
+        actionAdvisory: sev.action_advisory,
         repairCost: sev.estimated_repair_cost_inr,
         location: null
       };

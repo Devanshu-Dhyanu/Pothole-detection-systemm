@@ -41,7 +41,7 @@ Conventional municipal road surveys rely upon:
 - **Municipal GIS Telemetry & Heatmap:** Interactive WGS84 GPS geotagging, cluster analytics, and automated export of field inspection audits.
 - **Explainable AI (Grad-CAM):** Gradient-weighted class activation heatmaps providing transparent visual verification of network attention on deep asphalt fissures.
 - **Annotated Detection Preview:** Shows model-generated bounding boxes, defect labels, and confidence values on the analyzed image.
-- **Browser Scan History & Map:** Keeps the latest 20 scans in the current browser using IndexedDB. GPS location is optional and added only on request; geotagged scans appear on an interactive OpenStreetMap view. Map tiles require an internet connection.
+- **Browser Scan History, Map & Reports:** Keeps the latest 20 scans in the current browser using IndexedDB. GPS location is optional and added only on request; geotagged scans appear on an interactive OpenStreetMap view. Export scan details as CSV or print a report and choose “Save as PDF”. Map tiles require an internet connection.
 - **Android PWA & Native App:** Hardware-accelerated camera integration (`capture="environment"`), offline service worker caching, and native Android Studio WebView APK.
 
 ---
