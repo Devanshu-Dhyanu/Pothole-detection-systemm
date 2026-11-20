@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="manifest" href="/static/manifest.json">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/static/styles.css">
   <title>RoadGuard AI | Mobile PWA</title>
 </head>
@@ -85,8 +86,45 @@
           </div>
         </div>
       </section>
+
+      <section class="history-section" aria-labelledby="historyTitle">
+        <div class="history-heading">
+          <div>
+            <span class="section-label">Your inspection log</span>
+            <h2 id="historyTitle">Recent scans</h2>
+          </div>
+          <span id="historyCount" class="history-count">0 scans</span>
+        </div>
+        <p id="historyMessage" class="history-message" role="status">Scans are saved in this browser only.</p>
+        <div class="map-card">
+          <div class="map-heading">
+            <div>
+              <span class="section-label">Geospatial overview</span>
+              <h3>Scan locations</h3>
+            </div>
+            <div class="map-heading-meta">
+              <span id="mapCount" class="map-count">0 mapped</span>
+              <div class="map-legend" aria-label="Map priority legend">
+                <span><i class="legend-dot legend-p1"></i>P1</span>
+                <span><i class="legend-dot legend-p2"></i>P2</span>
+                <span><i class="legend-dot legend-p3"></i>P3</span>
+              </div>
+            </div>
+          </div>
+          <p id="mapMessage" class="map-message" role="status">Add a location to a scan to see it on the map.</p>
+          <div class="map-wrap">
+            <div id="scanMap" role="application" aria-label="Map of saved road inspection locations"></div>
+            <div id="mapEmpty" class="map-empty">No saved scan locations yet.</div>
+          </div>
+          <p class="map-attribution">Map data &copy; OpenStreetMap contributors</p>
+        </div>
+        <div id="historyList" class="history-list">
+          <div class="history-empty">Your completed inspections will appear here.</div>
+        </div>
+      </section>
     </main>
   </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="/static/app.js"></script>
 </body>
 </html>
