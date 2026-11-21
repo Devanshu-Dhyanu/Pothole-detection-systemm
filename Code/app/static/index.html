@@ -6,9 +6,33 @@
   <link rel="manifest" href="/static/manifest.json">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="/static/styles.css">
-  <title>RoadGuard AI | Mobile PWA</title>
+  <title>RoadGuard | Road inspection</title>
 </head>
 <body>
+  <section id="authScreen" class="auth-screen" aria-labelledby="authTitle">
+    <div class="auth-art">
+      <div class="auth-brand"><span class="brand-symbol">R</span><span>RoadGuard</span></div>
+      <div class="auth-art-copy"><span class="eyebrow">SMARTER ROAD INSPECTION</span><h1>Safer roads<br>start with a<br><em>closer look.</em></h1><p>Turn a road photo into a clear inspection report in seconds.</p></div>
+      <div class="auth-road" aria-hidden="true"><span></span><span></span><span></span></div>
+      <p class="auth-footnote">Built for the people who keep us moving.</p>
+    </div>
+    <div class="auth-panel">
+      <div class="auth-card">
+        <span class="auth-welcome">WELCOME TO ROADGUARD</span><h2 id="authTitle">Create your account</h2><p class="auth-subtitle">Get started with your road inspection workspace.</p>
+        <div class="auth-tabs" role="tablist"><button class="auth-tab active" type="button" data-mode="register">Create account</button><button class="auth-tab" type="button" data-mode="login">Sign in</button></div>
+        <form id="authForm">
+          <label id="nameField">Full name<input name="name" autocomplete="name" placeholder="Your name" minlength="2" required></label>
+          <label>Email address<input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label>
+          <label>Password<input name="password" type="password" autocomplete="new-password" placeholder="At least 8 characters" minlength="8" required></label>
+          <p id="authError" class="auth-error" role="alert"></p><button id="authSubmit" class="auth-submit" type="submit">Create account <span>→</span></button>
+        </form>
+        <div class="auth-divider"><span>or continue with</span></div>
+        <button id="googleAuthButton" class="google-auth-button" type="button"><span class="google-mark" aria-hidden="true">G</span>Continue with Google</button>
+        <p id="googleAuthNote" class="google-auth-note" hidden>Google sign-in needs OAuth credentials in the project configuration.</p>
+        <p class="auth-terms">By continuing, you agree to use inspection estimates as project guidance.</p>
+      </div>
+    </div>
+  </section>
   <div class="page-shell">
     <header class="header">
       <div class="logo-box">
@@ -16,43 +40,46 @@
           <svg viewBox="0 0 24 24"><path d="M12 3 4 20h16L12 3Zm0 5.3 3.1 6.7H8.9L12 8.3ZM9.7 17h4.6l1.1 2H8.6l1.1-2Z"/></svg>
         </div>
         <div>
-          <h2>RoadGuard AI</h2>
-          <p>Road intelligence system</p>
+          <h2>RoadGuard</h2>
+          <p>Inspection workspace</p>
         </div>
       </div>
-      <a class="status-pill" href="/api/v1/health" target="_blank">
-        <span class="status-dot"></span>
-        System online
-      </a>
+      <div class="header-actions">
+        <div class="account-control" aria-live="polite">
+          <span id="authStatusText">Guest mode</span>
+          <button id="logoutButton" class="auth-button auth-button-muted" type="button" hidden>Sign out</button>
+        </div>
+        <a id="systemStatus" class="status-pill" href="/api/v1/health" target="_blank">
+          <span class="status-dot"></span>
+          <span id="systemStatusText">Checking service</span>
+        </a>
+      </div>
     </header>
 
     <main class="content">
       <section class="hero">
         <div class="hero-copy">
-          <span class="eyebrow">AI-powered inspection</span>
-          <h1>Turn a road image into <span>actionable insights.</span></h1>
-          <p>Detect defects, estimate severity, and prioritize maintenance with one capture.</p>
-        </div>
-        <div class="hero-metrics" aria-label="System capabilities">
-          <div><strong>54.9</strong><span>FPS</span></div>
-          <div><strong>92.4%</strong><span>mAP</span></div>
+          <span class="eyebrow">Road condition review</span>
+          <h1>Road inspection</h1>
+          <p>Upload an image to review detected surface defects and their estimated severity.</p>
         </div>
       </section>
 
       <section class="workspace">
         <div class="upload-column">
           <label class="camera-card" for="cameraInput">
-            <input type="file" id="cameraInput" accept="image/*" capture="environment">
+            <input type="file" id="cameraInput" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" capture="environment">
             <div class="upload-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24"><path d="M4 7h3l1.2-2h7.6L17 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2Zm8 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"/></svg>
             </div>
             <div>
-              <h3>Analyze a road image</h3>
+              <h3>Select a road image</h3>
               <p>Drop a photo here or <strong>choose a file</strong></p>
             </div>
             <span class="upload-action">Choose image</span>
           </label>
-          <p class="hint">JPG, PNG or HEIC · Camera or dashcam image</p>
+          <p class="hint">JPG, PNG or WebP · Maximum 10 MB</p>
+          <p id="uploadMessage" class="upload-message" role="status" aria-live="polite"></p>
         </div>
 
         <div id="previewCard" class="preview-card">
@@ -62,16 +89,31 @@
           </div>
           <img id="imagePreview" src="" alt="Captured road surface">
           <div id="loadingSpinner" class="spinner">
-            <span class="spinner-ring"></span>
-            <span>Analyzing road surface…</span>
+            <div class="upload-progress">
+              <div class="upload-progress-label">
+                <span id="uploadProgressText">Preparing image…</span>
+                <span id="uploadProgressPercent">0%</span>
+              </div>
+              <div
+                id="uploadProgressTrack"
+                class="upload-progress-track"
+                role="progressbar"
+                aria-label="Image upload progress"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                aria-valuenow="0"
+              >
+                <span id="uploadProgressBar" class="upload-progress-bar"></span>
+              </div>
+            </div>
           </div>
         </div>
 
         <div id="resultCard" class="result-card">
           <div class="result-heading">
             <div>
-              <span class="section-label">Analysis result</span>
-              <h3 id="defectTitle">Waiting for image</h3>
+              <span class="section-label">Inspection result</span>
+              <h3 id="defectTitle">No image selected</h3>
             </div>
             <div class="badge" id="priorityBadge">No scan</div>
           </div>
@@ -90,8 +132,8 @@
       <section class="history-section" aria-labelledby="historyTitle">
         <div class="history-heading">
           <div>
-            <span class="section-label">Your inspection log</span>
-            <h2 id="historyTitle">Recent scans</h2>
+            <span class="section-label">Saved on this device</span>
+                <h2 id="historyTitle">Inspection history</h2>
           </div>
           <div class="history-heading-actions">
             <span id="historyCount" class="history-count">0 scans</span>

@@ -21,12 +21,125 @@ const mapCount = document.getElementById('mapCount');
 const mapEmpty = document.getElementById('mapEmpty');
 const exportCsvButton = document.getElementById('exportCsvButton');
 const exportPdfButton = document.getElementById('exportPdfButton');
+const uploadMessage = document.getElementById('uploadMessage');
+const uploadProgressText = document.getElementById('uploadProgressText');
+const uploadProgressPercent = document.getElementById('uploadProgressPercent');
+const uploadProgressTrack = document.getElementById('uploadProgressTrack');
+const uploadProgressBar = document.getElementById('uploadProgressBar');
+const systemStatus = document.getElementById('systemStatus');
+const systemStatusText = document.getElementById('systemStatusText');
+const authStatusText = document.getElementById('authStatusText');
+const authScreen = document.getElementById('authScreen');
+const authForm = document.getElementById('authForm');
+const authError = document.getElementById('authError');
+const authTitle = document.getElementById('authTitle');
+const authSubmit = document.getElementById('authSubmit');
+const nameField = document.getElementById('nameField');
+const googleAuthButton = document.getElementById('googleAuthButton');
+const googleAuthNote = document.getElementById('googleAuthNote');
+let authMode = 'register';
+const logoutButton = document.getElementById('logoutButton');
 const historyDatabaseName = 'roadguard-history';
 const historyStoreName = 'scans';
 const maxHistoryEntries = 20;
+const maxUploadBytes = 10 * 1024 * 1024;
+const allowedImageTypes = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png'],
+  ['.webp', 'image/webp']
+]);
 let scanMap = null;
 let scanMarkerLayer = null;
 let currentScans = [];
+
+async function updateSystemStatus() {
+  try {
+    const response = await fetch('/api/v1/health', { cache: 'no-store' });
+    if (!response.ok) throw new Error('Health check failed');
+    systemStatus.classList.add('online');
+    systemStatus.classList.remove('offline');
+    systemStatusText.textContent = 'Service available';
+  } catch {
+    systemStatus.classList.add('offline');
+    systemStatus.classList.remove('online');
+    systemStatusText.textContent = 'Service unavailable';
+  }
+}
+
+async function updateAuthStatus() {
+  try {
+    const response = await fetch('/auth/me', { cache: 'no-store' });
+    if (!response.ok) throw new Error(`Account request failed (${response.status})`);
+    const auth = await response.json();
+    const user = auth.user;
+
+    authScreen.hidden = Boolean(auth.authenticated);
+    googleAuthButton.disabled = !auth.configured;
+    googleAuthNote.hidden = auth.configured || Boolean(auth.authenticated);
+    logoutButton.hidden = !auth.authenticated;
+
+    if (auth.authenticated && user) {
+      authStatusText.textContent = `Signed in as ${user.name || user.email || 'Google user'}`;
+    } else {
+      authStatusText.textContent = 'Signed out';
+    }
+  } catch (error) {
+    authStatusText.textContent = 'Sign-in status unavailable';
+    authScreen.hidden = false;
+    logoutButton.hidden = true;
+    console.error('Unable to load Google sign-in status:', error);
+  }
+}
+
+document.querySelectorAll('.auth-tab').forEach((tab) => tab.addEventListener('click', () => {
+  authMode = tab.dataset.mode;
+  document.querySelectorAll('.auth-tab').forEach((item) => item.classList.toggle('active', item === tab));
+  const registering = authMode === 'register';
+  nameField.hidden = !registering;
+  nameField.querySelector('input').required = registering;
+  authForm.elements.password.autocomplete = registering ? 'new-password' : 'current-password';
+  authForm.elements.password.placeholder = registering ? 'At least 8 characters' : 'Your password';
+  authTitle.textContent = registering ? 'Create your account' : 'Welcome back';
+  authSubmit.innerHTML = registering ? 'Create account <span>→</span>' : 'Sign in <span>→</span>';
+  authError.textContent = '';
+}));
+
+authForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  authError.textContent = '';
+  authSubmit.disabled = true;
+  try {
+    const fields = Object.fromEntries(new FormData(authForm));
+    const response = await fetch(`/auth/${authMode}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(fields) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.detail || 'Unable to sign in.');
+    authForm.reset();
+    await updateAuthStatus();
+  } catch (error) {
+    authError.textContent = error.message;
+  } finally {
+    authSubmit.disabled = false;
+  }
+});
+
+googleAuthButton.addEventListener('click', () => {
+  if (!googleAuthButton.disabled) window.location.assign('/auth/google/login');
+});
+
+logoutButton.addEventListener('click', async () => {
+  logoutButton.disabled = true;
+  try {
+    const response = await fetch('/auth/logout', { method: 'POST' });
+    if (!response.ok) throw new Error(`Sign-out failed (${response.status})`);
+    await updateAuthStatus();
+  } catch (error) {
+    authStatusText.textContent = 'Sign-out failed';
+    console.error('Unable to sign out:', error);
+  } finally {
+    logoutButton.disabled = false;
+  }
+});
 
 function initializeScanMap() {
   if (!window.L) {
@@ -401,7 +514,7 @@ function exportHistoryPdf() {
     main.appendChild(section);
   });
 
-  appendReportText(reportDocument, main, 'p', 'Generated locally by RoadGuard AI.', 'footer');
+  appendReportText(reportDocument, main, 'p', 'Generated locally by RoadGuard.', 'footer');
   historyMessage.textContent = 'Report opened in a new tab. Choose “Print / Save as PDF” there to export.';
   reportDocument.getElementById('printReport').addEventListener('click', () => reportWindow.print());
   const imageReady = Promise.all(
@@ -439,9 +552,79 @@ cameraCard.addEventListener('drop', (e) => {
   if (file) analyzeFile(file);
 });
 
+function validateImageFile(file) {
+  const extension = file.name.slice(file.name.lastIndexOf('.')).toLowerCase();
+  const expectedType = allowedImageTypes.get(extension);
+  if (!expectedType) return 'Unsupported file type. Choose a JPG, PNG, or WebP image.';
+  if (file.type && file.type !== expectedType) return 'The file type does not match its filename. Choose a valid JPG, PNG, or WebP image.';
+  if (file.size === 0) return 'This file is empty. Choose another image.';
+  if (file.size > maxUploadBytes) return 'This image is larger than 10 MB. Choose a smaller image.';
+  return '';
+}
+
+function setUploadMessage(message, isError = false) {
+  uploadMessage.textContent = message;
+  uploadMessage.classList.toggle('error', isError);
+}
+
+function setUploadProgress(message, percent, indeterminate = false) {
+  uploadProgressText.textContent = message;
+  uploadProgressTrack.classList.toggle('indeterminate', indeterminate);
+  uploadProgressPercent.textContent = indeterminate ? '…' : `${percent}%`;
+  uploadProgressTrack.setAttribute('aria-valuenow', String(percent));
+  uploadProgressBar.style.width = indeterminate ? '' : `${percent}%`;
+}
+
+function requestDetection(file) {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const request = new XMLHttpRequest();
+    request.open('POST', '/api/v1/detect');
+    request.timeout = 180000;
+    request.upload.addEventListener('progress', (event) => {
+      if (!event.lengthComputable) return;
+      const percent = Math.min(100, Math.round((event.loaded / event.total) * 100));
+      setUploadProgress('Uploading image…', percent);
+    });
+    request.upload.addEventListener('load', () => {
+      setUploadProgress('Image uploaded. Analyzing road surface…', 100, true);
+    });
+    request.addEventListener('load', () => {
+      let data;
+      try {
+        data = JSON.parse(request.responseText);
+      } catch {
+        reject(new Error('The server returned an unreadable response. Please try again.'));
+        return;
+      }
+
+      if (request.status < 200 || request.status >= 300) {
+        reject(new Error(data.detail || 'Image analysis failed. Please try again.'));
+        return;
+      }
+      resolve(data);
+    });
+    request.addEventListener('error', () => reject(new Error('Could not reach the detection server. Check your connection and try again.')));
+    request.addEventListener('timeout', () => reject(new Error('Image analysis timed out. Try again with a smaller image.')));
+    request.addEventListener('abort', () => reject(new Error('Image upload was cancelled.')));
+    request.send(formData);
+  });
+}
+
 async function analyzeFile(file) {
   if (!file) return;
 
+  const validationError = validateImageFile(file);
+  if (validationError) {
+    setUploadMessage(validationError, true);
+    cameraInput.value = '';
+    return;
+  }
+
+  setUploadMessage('');
+  setUploadProgress('Preparing image…', 0);
   previewCard.classList.add('has-image');
   previewPlaceholder.style.display = 'none';
   loadingSpinner.classList.add('visible');
@@ -459,34 +642,26 @@ async function analyzeFile(file) {
     });
     imagePreview.src = previewData;
 
-    const formData = new FormData();
-    formData.append('file', file);
-    const response = await fetch('/api/v1/detect', {
-      method: 'POST',
-      body: formData
-    });
-    if (!response.ok) throw new Error('Analysis request failed');
-    const data = await response.json();
+    const data = await requestDetection(file);
     if (!data.success || !data.annotated_image) {
-      throw new Error('Analysis response did not include an annotated image');
+      throw new Error('The server response did not include an annotated image. Please try again.');
     }
 
     imagePreview.src = data.annotated_image;
+    setUploadProgress('Analysis complete.', 100);
     loadingSpinner.classList.remove('visible');
     resultCard.classList.remove('loading');
 
     if (data.success) {
       const sev = data.severity_assessment;
       priorityBadge.innerText = sev.priority_level;
+      priorityBadge.classList.remove('priority-p1', 'priority-p2', 'priority-p3');
       if (sev.priority_level.includes('P1')) {
-        priorityBadge.style.background = '#dc2626';
-        priorityBadge.style.color = '#ffffff';
+        priorityBadge.classList.add('priority-p1');
       } else if (sev.priority_level.includes('P2')) {
-        priorityBadge.style.background = '#f59e0b';
-        priorityBadge.style.color = '#1b1202';
+        priorityBadge.classList.add('priority-p2');
       } else {
-        priorityBadge.style.background = '#16a34a';
-        priorityBadge.style.color = '#ffffff';
+        priorityBadge.classList.add('priority-p3');
       }
 
       defectTitle.innerText = `${sev.hazard_class}`;
@@ -520,12 +695,17 @@ async function analyzeFile(file) {
         historyMessage.textContent = `Scan completed, but history could not be saved: ${error.message}`;
       }
     }
+    setUploadMessage(`Analysis complete for ${file.name}.`);
   } catch (err) {
+    setUploadProgress('Upload stopped.', 0);
     loadingSpinner.classList.remove('visible');
     resultCard.classList.remove('loading');
     defectTitle.innerText = 'Analysis unavailable';
-    actionText.innerText = 'Detection server is offline or the image could not be processed.';
-    costText.innerText = 'Please try again.';
+    actionText.innerText = err.message || 'The image could not be analyzed.';
+    costText.innerText = 'Please check the image and try again.';
+    setUploadMessage(err.message || 'The image could not be analyzed.', true);
+  } finally {
+    cameraInput.value = '';
   }
 }
 
@@ -577,6 +757,8 @@ historyList.addEventListener('click', async (event) => {
   }
 });
 
+updateSystemStatus();
+updateAuthStatus();
 initializeScanMap();
 renderHistory().catch((error) => {
   historyMessage.textContent = error.message;

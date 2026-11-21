@@ -4,6 +4,10 @@ __pycache__/
 **/__pycache__/
 *.py[cod]
 .pytest_cache/
+.env
+**/.env
+.streamlit/secrets.toml
+**/.streamlit/secrets.toml
 
 Code/model/runs/
 Code/model/*EXECUTED*.ipynb
