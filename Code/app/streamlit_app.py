@@ -111,7 +111,7 @@ sample_files = sorted(
     if f.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
 )[:20] if os.path.isdir(sample_dir) else []
 
-active_model = getattr(detector.model, "ckpt_path", None) if detector.model is not None else None
+active_model = detector.model_source
 with st.sidebar:
     if active_model:
         st.caption(f"Detection model: {os.path.basename(active_model)}")

@@ -31,6 +31,12 @@ try:
 except ImportError:
     ULTRALYTICS_AVAILABLE = False
 
+try:
+    import onnxruntime as ort
+    ONNXRUNTIME_AVAILABLE = True
+except ImportError:
+    ONNXRUNTIME_AVAILABLE = False
+
 from Code.model.severity_engine import PotholeSeverityEngine
 
 class RoadGuardDetector:
@@ -38,6 +44,8 @@ class RoadGuardDetector:
         self.conf_threshold = conf_threshold
         self.iou_threshold = iou_threshold
         self.model = None
+        self.onnx_session = None
+        self.model_source = None
         self.severity_engine = PotholeSeverityEngine()
         
         # Color palette for classes: Pothole (Red), Road_Crack (Orange), Normal/Other (Cyan)
@@ -61,15 +69,87 @@ class RoadGuardDetector:
             os.path.join(BASE_DIR, "Code", "model", "weights", "yolov8n.pt")      # fallback
         ])
 
+        # Prefer the compact ONNX export when Ultralytics/PyTorch is not installed
+        # (for example, on a small free web-service instance).
+        if not ULTRALYTICS_AVAILABLE and ONNXRUNTIME_AVAILABLE:
+            onnx_paths = [
+                os.path.join(BASE_DIR, "Code", "model", "weights", "best.onnx"),
+                os.path.join(BASE_DIR, "Code", "model", "weights", "roadguard_edge.onnx"),
+            ]
+            for p in onnx_paths:
+                if os.path.exists(p):
+                    try:
+                        options = ort.SessionOptions()
+                        options.intra_op_num_threads = max(1, min(2, os.cpu_count() or 1))
+                        self.onnx_session = ort.InferenceSession(p, sess_options=options, providers=["CPUExecutionProvider"])
+                        self.model_source = p
+                        print(f"[RoadGuard Detector] Loaded ONNX model from {p}")
+                        break
+                    except Exception:
+                        continue
+
         if ULTRALYTICS_AVAILABLE:
             for p in search_paths:
                 if os.path.exists(p):
                     try:
                         self.model = YOLO(p)
+                        self.model_source = p
                         print(f"[RoadGuard Detector] Loaded YOLO model from {p}")
                         break
                     except Exception as e:
                         continue
+
+    @property
+    def is_model_loaded(self):
+        return self.model is not None or self.onnx_session is not None
+
+    def _predict_onnx(self, image_np):
+        """Run a fixed 640x640 YOLOv8 ONNX export and map boxes to source pixels."""
+        input_meta = self.onnx_session.get_inputs()[0]
+        height, width = image_np.shape[:2]
+        input_h, input_w = input_meta.shape[2:4]
+        scale = min(input_w / width, input_h / height)
+        resized_w, resized_h = int(round(width * scale)), int(round(height * scale))
+        resized = cv2.resize(image_np, (resized_w, resized_h), interpolation=cv2.INTER_LINEAR)
+        pad_x, pad_y = (input_w - resized_w) / 2, (input_h - resized_h) / 2
+        left, top = int(round(pad_x - 0.1)), int(round(pad_y - 0.1))
+        right, bottom = input_w - resized_w - left, input_h - resized_h - top
+        padded = cv2.copyMakeBorder(resized, top, bottom, left, right, cv2.BORDER_CONSTANT, value=(114,114,114))
+        tensor = cv2.cvtColor(padded, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+        tensor = np.transpose(tensor, (2,0,1))[None]
+        output = self.onnx_session.run(None, {input_meta.name: tensor})[0]
+        predictions = np.squeeze(output, axis=0).T
+        if predictions.ndim != 2 or predictions.shape[1] < 5:
+            raise ValueError("Unexpected YOLO ONNX output shape")
+        class_scores = predictions[:, 4:]
+        class_ids = np.argmax(class_scores, axis=1)
+        scores = class_scores[np.arange(len(class_scores)), class_ids]
+        candidates = np.flatnonzero(scores >= self.conf_threshold)
+        names = {0: "Pothole", 1: "Road_Crack", 2: "Manhole_Drain"}
+        detections = []
+        for class_id in np.unique(class_ids[candidates]):
+            selected = candidates[class_ids[candidates] == class_id]
+            boxes = []
+            kept_scores = []
+            for idx in selected:
+                cx, cy, bw, bh = predictions[idx, :4]
+                x1 = int(max(0, min(width, round((cx - bw/2 - pad_x) / scale))))
+                y1 = int(max(0, min(height, round((cy - bh/2 - pad_y) / scale))))
+                x2 = int(max(0, min(width, round((cx + bw/2 - pad_x) / scale))))
+                y2 = int(max(0, min(height, round((cy + bh/2 - pad_y) / scale))))
+                if x2 <= x1 or y2 <= y1:
+                    continue
+                boxes.append([x1, y1, x2-x1, y2-y1])
+                kept_scores.append(float(scores[idx]))
+            if not boxes:
+                continue
+            keep = cv2.dnn.NMSBoxes(boxes, kept_scores, self.conf_threshold, self.iou_threshold)
+            for local_idx in np.asarray(keep).reshape(-1):
+                x, y, bw, bh = boxes[int(local_idx)]
+                detections.append({"class_name": names.get(int(class_id), "Road_Crack"),
+                                   "confidence": round(kept_scores[int(local_idx)], 2),
+                                   "bbox": [x, y, x+bw, y+bh]})
+        return detections
 
     def _detect_morphological_potholes(self, image_np):
         """
@@ -247,6 +327,11 @@ class RoadGuardDetector:
                             "bbox": coords
                         })
             except Exception as e:
+                detections = []
+        elif self.onnx_session is not None:
+            try:
+                detections = self._predict_onnx(image_np)
+            except Exception:
                 detections = []
 
         # If YOLO returned no detections or was not loaded, use morphological cavity detector

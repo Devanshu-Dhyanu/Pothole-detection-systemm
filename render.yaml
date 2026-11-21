@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: roadguard-inspection
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements-render.txt
+    startCommand: uvicorn Code.app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ROADGUARD_SESSION_SECRET
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.11

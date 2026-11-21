@@ -7,6 +7,7 @@ import base64
 import secrets
 import time
 import json
+import csv
 import sqlite3
 import hashlib
 import hmac
@@ -34,16 +35,17 @@ load_dotenv(os.path.join(BASE_DIR, ".env"))
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
 ROADGUARD_SESSION_SECRET = os.getenv("ROADGUARD_SESSION_SECRET", "").strip()
+ROADGUARD_APP_URL = os.getenv(
+    "ROADGUARD_APP_URL", os.getenv("RENDER_EXTERNAL_URL", "http://127.0.0.1:8000")
+).strip().rstrip("/")
 GOOGLE_REDIRECT_URI = os.getenv(
-    "GOOGLE_REDIRECT_URI",
-    "http://127.0.0.1:8000/auth/google/callback"
+    "GOOGLE_REDIRECT_URI", f"{ROADGUARD_APP_URL}/auth/google/callback"
 ).strip()
-ROADGUARD_APP_URL = os.getenv("ROADGUARD_APP_URL", "http://127.0.0.1:8000").strip().rstrip("/")
 ROADGUARD_ALLOWED_ORIGINS = [
     origin.strip()
     for origin in os.getenv(
         "ROADGUARD_ALLOWED_ORIGINS",
-        "http://127.0.0.1:8000,http://localhost:8000"
+        f"{ROADGUARD_APP_URL},http://127.0.0.1:8000,http://localhost:8000"
     ).split(",")
     if origin.strip()
 ]
@@ -133,7 +135,7 @@ def health_check():
     return {
         "status": "online",
         "service": "RoadGuard API",
-        "detection_mode": "model" if detector.model is not None else "image-processing fallback",
+        "detection_mode": "model" if detector.is_model_loaded else "image-processing fallback",
         "timestamp": time.time()
     }
 
@@ -271,12 +273,11 @@ async def detect_road_hazards(
     }
 
 @app.get("/api/v1/telemetry")
-def get_telemetry_records(limit: int = 50):
+def get_telemetry_records(limit: int = Query(50, ge=1, le=500)):
     csv_path = os.path.join(BASE_DIR, "Data", "pothole_telemetry_records.csv")
     if os.path.exists(csv_path):
-        import pandas as pd
-        df = pd.read_csv(csv_path)
-        return df.head(limit).to_dict(orient="records")
+        with open(csv_path, newline="", encoding="utf-8") as csv_file:
+            return list(csv.DictReader(csv_file))[:limit]
     return []
 
 if __name__ == '__main__':
