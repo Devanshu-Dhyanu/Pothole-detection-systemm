@@ -2,6 +2,11 @@
 
 RoadGuard is a computer-vision project for reviewing road images, displaying defect detections, and estimating severity. It includes a FastAPI service, a Streamlit dashboard, and a browser-based inspection interface.
 
+## Live deployment
+
+Browser inspection app: [https://pothole-detection-systemm.onrender.com](https://pothole-detection-systemm.onrender.com)
+API health: [https://pothole-detection-systemm.onrender.com/api/v1/health](https://pothole-detection-systemm.onrender.com/api/v1/health)
+
 ## Features
 
 - Inspect JPG, PNG, and WebP images up to 10 MB.
